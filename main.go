@@ -7,31 +7,63 @@ import (
 	"log"
 	"os"
   "strings"
+	"io/ioutil"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/googleai"
 )
 
 func main() {
+	if len(os.Args) < 2 {
+		log.Fatal("Usage: main.go <folder>")
+	}
+	dirName := os.Args[1]
+	files, err := ioutil.ReadDir(dirName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		log.Fatal("GEMINI_API_KEY env var not set")
+	}
+
 	ctx := context.Background()
-	apiKey := os.Getenv("GOOGLE_API_KEY")
+
 	llm, err := googleai.New(ctx, googleai.WithAPIKey(apiKey))
 	if err != nil {
 		log.Fatal(err)
 	}
+	
+	tplFile, err := os.Open("./jsonprompt.tpl")
+	if err != nil {
+		log.Fatal(err)
+	}
+	tpl,err := ioutil.ReadAll(tplFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer tplFile.Close()
 
-  var sb strings.Builder
-  for _, filename := range os.Args[1:] {
-    fmt.Printf("Read %s file\n", filename)
-    json, err := os.Open(filename)
+	var sb strings.Builder
+
+	for _, file := range files {
+		filePath := dirName + "/" + file.Name()
+		fmt.Println(filePath)
+
+		jsonFile, err := os.Open(filePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		json, err := ioutil.ReadAll(jsonFile)
     if err != nil {
-      sb.WriteString("\n")
-      sb.WriteString(json)
+			log.Fatal(err)
     }
-    os.Close()
+    sb.WriteString(string(json))
+    sb.WriteString("\n")
+    defer jsonFile.Close()
   }
-  prompt := fmt.Sprintf("Generate a JSON Schema based on these bunch of JSON: %s\n", sb.String())
-  
+	prompt := strings.Replace(string(tpl), "{{jsons}}", sb.String(), 1)
+
   answer, err := llms.GenerateFromSinglePrompt(ctx, llm, prompt)
 	if err != nil {
 		log.Fatal(err)
