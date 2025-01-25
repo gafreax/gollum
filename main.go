@@ -4,13 +4,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
-  "strings"
-	"io/ioutil"
+	"strings"
 
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/googleai"
+	"github.com/tmc/langchaingo/llms/ollama"
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 		log.Fatal("Usage: main.go <folder>")
 	}
 	dirName := os.Args[1]
-	files, err := ioutil.ReadDir(dirName)
+	files, err := os.ReadDir(dirName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -29,16 +29,18 @@ func main() {
 
 	ctx := context.Background()
 
-	llm, err := googleai.New(ctx, googleai.WithAPIKey(apiKey))
+	// llm, err := googleai.New(ctx, googleai.WithAPIKey(apiKey))
+	llm, err := ollama.New(ollama.WithModel("jsonschema"))
+
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 	tplFile, err := os.Open("./jsonprompt.tpl")
 	if err != nil {
 		log.Fatal(err)
 	}
-	tpl,err := ioutil.ReadAll(tplFile)
+	tpl, err := io.ReadAll(tplFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,17 +56,17 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		json, err := ioutil.ReadAll(jsonFile)
-    if err != nil {
+		json, err := io.ReadAll(jsonFile)
+		if err != nil {
 			log.Fatal(err)
-    }
-    sb.WriteString(string(json))
-    sb.WriteString("\n")
-    defer jsonFile.Close()
-  }
+		}
+		sb.WriteString(string(json))
+		sb.WriteString("\n")
+		defer jsonFile.Close()
+	}
 	prompt := strings.Replace(string(tpl), "{{jsons}}", sb.String(), 1)
 
-  answer, err := llms.GenerateFromSinglePrompt(ctx, llm, prompt)
+	answer, err := llms.GenerateFromSinglePrompt(ctx, llm, prompt)
 	if err != nil {
 		log.Fatal(err)
 	}
